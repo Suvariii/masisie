@@ -272,6 +272,9 @@ class Engine:
         items = sorted(self.games.values(), key=lambda x: x.last_update_ms, reverse=True)
         res = []
         for g in items[:250]:
+            # Sport field doğru gönderilsin
+            actual_sport = g.sport if hasattr(g, 'sport') else "Soccer"
+            print(f"[SNAPSHOT] Game {g.game_id} sending as {actual_sport}")
             res.append({
                 "game_id": g.game_id,
                 "title": f"{g.team1} vs {g.team2}",
@@ -280,7 +283,7 @@ class Engine:
                 "score1": g.score1,
                 "score2": g.score2,
                 "minute": g.current_game_time,
-                "sport": g.sport,
+                "sport": actual_sport,
                 "tournament": g.tournament,
                 "is_live": g.is_live,
                 "last_update_ms": g.last_update_ms,
