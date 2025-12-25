@@ -68,6 +68,7 @@ class Game:
     team2: str = "Team 2"
     tournament: str = "-"
     sport: str = "Soccer"
+    sport_locked: bool = False  # Bir kere Basketball olduysa kilitlenir
     is_live: int = 1
     current_game_time: str = ""
     score1: int = 0
@@ -188,14 +189,19 @@ class Engine:
             sport_id = gobj.get("_sport_id", "1")
             print(f"[DEBUG] Game {gid} has _sport_id: {sport_id}")
             
-            # Sport_id'ye göre sport türünü belirle
-            # 1 = Soccer, 2 = Tennis, 3 = Basketball (e-sports), vb.
-            if sport_id in ("2", "3"):  # 2 veya 3 basketbol olabilir
-                g.sport = "Basketball"
-                print(f"[SPORT] 🏀 Game {gid} -> Basketball (sport_id={sport_id})")
+            # Sport kilitli değilse güncelle
+            if not g.sport_locked:
+                # Sport_id'ye göre sport türünü belirle
+                # 1 = Soccer, 2 = Tennis, 3 = Basketball (e-sports), vb.
+                if sport_id in ("2", "3"):  # 2 veya 3 basketbol olabilir
+                    g.sport = "Basketball"
+                    g.sport_locked = True  # Basketball'a kilitle - artık değişmesin
+                    print(f"[SPORT] 🏀 Game {gid} -> Basketball (sport_id={sport_id}) LOCKED")
+                else:
+                    g.sport = "Soccer"
+                    print(f"[SPORT] ⚽ Game {gid} -> Soccer (sport_id={sport_id})")
             else:
-                g.sport = "Soccer"
-                print(f"[SPORT] ⚽ Game {gid} -> Soccer (sport_id={sport_id})")
+                print(f"[SPORT] 🔒 Game {gid} sport locked as {g.sport} (ignoring sport_id={sport_id})")
 
             # Takım isimlerini çek
             team_info = gobj.get("team1_name") or gobj.get("team1")
