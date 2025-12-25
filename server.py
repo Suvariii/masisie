@@ -166,6 +166,8 @@ class Engine:
 
         extracted: Dict[str, dict] = {}
         collect_games(data, extracted)
+        
+        print(f"[DEBUG] Collected {len(extracted)} games from swarm data")
 
         ts = now_ms()
         for gid, gobj in extracted.items():
@@ -174,14 +176,15 @@ class Engine:
 
             # Sport türünü game object'ten al (_sport_id)
             sport_id = gobj.get("_sport_id", "1")
+            print(f"[DEBUG] Game {gid} has _sport_id: {sport_id}")
             
             # Sport_id'ye göre sport türünü belirle
             if sport_id == "2":
                 g.sport = "Basketball"
-                print(f"[SPORT] 🏀 Game {gid} -> Basketball")
+                print(f"[SPORT] 🏀 Game {gid} -> Basketball (sport_id={sport_id})")
             else:
                 g.sport = "Soccer"
-                print(f"[SPORT] ⚽ Game {gid} -> Soccer")
+                print(f"[SPORT] ⚽ Game {gid} -> Soccer (sport_id={sport_id})")
 
             # Takım isimlerini çek
             team_info = gobj.get("team1_name") or gobj.get("team1")
