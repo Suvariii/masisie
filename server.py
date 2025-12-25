@@ -4,12 +4,14 @@ import os
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import threading
 
-from aiohttp import web
-import aiohttp
+import websockets
 
 HOST = "0.0.0.0"
 PORT = int(os.getenv("PORT", 8777))
+WS_PORT = PORT + 1  # WebSocket için ayrı port
 
 def jloads_maybe(s: Any) -> Any:
     if isinstance(s, (dict, list)):
@@ -106,6 +108,16 @@ def extract_minute(gobj: dict) -> str:
         return str(info.get("current_game_time"))
     return ""
 
+def ws_path(ws) -> str:
+    # websockets 10/11: ws.path
+    p = getattr(ws, "path", None)
+    if p:
+        return p
+    # websockets 12/13: ws.request.path
+    req = getattr(ws, "request", None)
+    if req and getattr(req, "path", None):
+        return req.path
+    return "/"
 
 class Engine:
     def __init__(self):
@@ -218,7 +230,7 @@ class Engine:
         dead = []
         for ws in self.front_clients:
             try:
-                await ws.send_str(raw)
+                await ws.send(raw)
             except Exception:
                 dead.append(ws)
         for ws in dead:
@@ -229,92 +241,91 @@ class Engine:
 
 engine = Engine()
 
-# HTTP Health Check endpoint (Render.com için)
-async def health_check(request):
-    return web.Response(text="OK", status=200)
+# Simple HTTP server for health checks
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path in ["/", "/health"]:
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"OK")
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
+    def do_HEAD(self):
+        if self.path in ["/", "/health"]:
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
+    def log_message(self, format, *args):
+        # Suppress default logging
+        pass
 
-# WebSocket handler for frontend
-async def websocket_frontend(request):
-    ws = web.WebSocketResponse()
-    await ws.prepare(request)
-    
-    engine.front_clients.append(ws)
-    await engine.broadcast_front({"type": "matches", "matches": engine.snapshot_matches()})
-    
-    try:
+def run_http_server():
+    server = HTTPServer((HOST, PORT), HealthCheckHandler)
+    print(f"[HTTP] Health check server: http://{HOST}:{PORT}/health")
+    server.serve_forever()
+
+async def handler(ws):
+    path = ws_path(ws)
+
+    if path.startswith("/frontend"):
+        engine.front_clients.append(ws)
+        await engine.broadcast_front({"type": "matches", "matches": engine.snapshot_matches()})
+        try:
+            async for _ in ws:
+                pass
+        finally:
+            if ws in engine.front_clients:
+                engine.front_clients.remove(ws)
+        return
+
+    if path.startswith("/ingest"):
         async for msg in ws:
-            if msg.type == aiohttp.WSMsgType.TEXT:
-                pass  # Frontend genelde sadece dinler
-            elif msg.type == aiohttp.WSMsgType.ERROR:
-                print(f'WebSocket connection closed with exception {ws.exception()}')
-    finally:
-        if ws in engine.front_clients:
-            engine.front_clients.remove(ws)
-    
-    return ws
+            obj = jloads_maybe(msg)
+            if not isinstance(obj, dict):
+                continue
 
-# WebSocket handler for ingest
-async def websocket_ingest(request):
-    ws = web.WebSocketResponse()
-    await ws.prepare(request)
-    
-    try:
-        async for msg in ws:
-            if msg.type == aiohttp.WSMsgType.TEXT:
-                obj = jloads_maybe(msg.data)
-                if not isinstance(obj, dict):
-                    continue
+            swarm_obj = None
+            if obj.get("kind") == "swarm_recv":
+                swarm_obj = jloads_maybe(obj.get("payload"))
+            elif "code" in obj and "data" in obj:
+                swarm_obj = obj
 
-                swarm_obj = None
-                if obj.get("kind") == "swarm_recv":
-                    swarm_obj = jloads_maybe(obj.get("payload"))
-                elif "code" in obj and "data" in obj:
-                    swarm_obj = obj
+            if not isinstance(swarm_obj, dict):
+                continue
 
-                if not isinstance(swarm_obj, dict):
-                    continue
+            events = engine.apply_swarm_payload(swarm_obj)
 
-                events = engine.apply_swarm_payload(swarm_obj)
+            if events:
+                await engine.broadcast_front({
+                    "type": "events",
+                    "events": [{"game_id": e.game_id, "etype": e.type, "team": e.team, "ts": e.ts} for e in events],
+                })
 
-                if events:
-                    await engine.broadcast_front({
-                        "type": "events",
-                        "events": [{"game_id": e.game_id, "etype": e.type, "team": e.team, "ts": e.ts} for e in events],
-                    })
+            await engine.broadcast_front({"type": "matches", "matches": engine.snapshot_matches()})
+        return
 
-                await engine.broadcast_front({"type": "matches", "matches": engine.snapshot_matches()})
-            elif msg.type == aiohttp.WSMsgType.ERROR:
-                print(f'WebSocket connection closed with exception {ws.exception()}')
-    except Exception as e:
-        print(f"Error in ingest handler: {e}")
-    
-    return ws
+    # başka path geldiyse kapat
+    await ws.close()
 
 async def main():
-    app = web.Application()
+    # HTTP sunucusunu ayrı thread'de başlat
+    http_thread = threading.Thread(target=run_http_server, daemon=True)
+    http_thread.start()
     
-    # HTTP routes
-    app.router.add_get("/", health_check)
-    app.router.add_get("/health", health_check)
-    app.router.add_head("/", health_check)
-    app.router.add_head("/health", health_check)
+    print(f"[WebSocket] server: ws://{HOST}:{WS_PORT}")
+    print(f"  - frontend: ws://{HOST}:{WS_PORT}/frontend")
+    print(f"  - ingest:   ws://{HOST}:{WS_PORT}/ingest")
     
-    # WebSocket routes
-    app.router.add_get("/frontend", websocket_frontend)
-    app.router.add_get("/ingest", websocket_ingest)
-    
-    print(f"[SERVER] Starting on {HOST}:{PORT}")
-    print(f"  - HTTP health check: http://{HOST}:{PORT}/health")
-    print(f"  - WebSocket frontend: ws://{HOST}:{PORT}/frontend")
-    print(f"  - WebSocket ingest: ws://{HOST}:{PORT}/ingest")
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, HOST, PORT)
-    await site.start()
-    
-    # Sunucuyu süresiz çalışır durumda tut
-    await asyncio.Future()
+    # WebSocket server'ı başlat
+    async with websockets.serve(handler, HOST, WS_PORT, ping_interval=20, ping_timeout=20, max_size=8_000_000):
+        await asyncio.Future()
 
 if __name__ == "__main__":
     asyncio.run(main())
