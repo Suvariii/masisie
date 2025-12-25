@@ -189,7 +189,8 @@ class Engine:
             print(f"[DEBUG] Game {gid} has _sport_id: {sport_id}")
             
             # Sport_id'ye göre sport türünü belirle
-            if sport_id == "2":
+            # 1 = Soccer, 2 = Tennis, 3 = Basketball (e-sports), vb.
+            if sport_id in ("2", "3"):  # 2 veya 3 basketbol olabilir
                 g.sport = "Basketball"
                 print(f"[SPORT] 🏀 Game {gid} -> Basketball (sport_id={sport_id})")
             else:
