@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Multi Match Live Animation</title>
+
+  <!-- Outfit font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Rajdhani font -->
+  <link href="https://fonts.googleapis.com/css?family=Rajdhani:300,400,500,600,700&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg:#0b0d11;
+      --bg2:#0f1218;
+      --panel:#141820;
+      --panel2:#10141b;
+      --line:rgba(255,255,255,.08);
+      --txt:rgba(255,255,255,.92);
+      --muted:rgba(255,255,255,.58);
+      --accent:#E81C5A;
+
+      --good:#22c55e;
+      --warn:#f59e0b;
+      --bad:#ef4444;
+
+      --match:#333333; /* senin istediğin */
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: "Outfit", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      color:var(--txt);
+      background:
+        radial-gradient(900px 600px at 18% 10%, rgba(232,28,90,.22), transparent 60%),
+        radial-gradient(900px 700px at 80% 24%, rgba(232,28,90,.12), transparent 60%),
+        radial-gradient(700px 520px at 60% 80%, rgba(255,255,255,.06), transparent 60%),
+        linear-gradient(180deg, var(--bg), var(--bg2));
+      overflow:hidden;
+    }
+
+    .app{
+      height:100%;
+      display:grid;
+      grid-template-columns: 360px 1fr 360px;
+      gap:12px;
+      padding:12px;
+    }
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius:16px;
+      box-shadow:
+        0 20px 70px rgba(0,0,0,.55),
+        0 0 0 1px rgba(232,28,90,.06) inset;
+      overflow:hidden;
+      position:relative;
+    }
+
+    .card::after{
+      content:"";
+      position:absolute; inset:-2px;
+      background: radial-gradient(520px 260px at 20% 0%, rgba(232,28,90,.18), transparent 55%),
+                  radial-gradient(520px 260px at 80% 20%, rgba(232,28,90,.10), transparent 55%);
+      pointer-events:none;
+      opacity:.85;
+    }
+
+    .card > *{ position:relative; z-index:1; }
+
+    .top{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.12);
+      backdrop-filter: blur(8px);
+    }
+
+    .title{
+      font-weight:800;
+      letter-spacing:.2px;
+      font-size:15px;
+    }
+
+    .sub{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:2px;
+    }
+
+    .pill{
+      font-size:12px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.03);
+      color: var(--txt);
+      box-shadow: 0 0 0 1px rgba(255,255,255,.03) inset;
+      white-space:nowrap;
+    }
+
+    .pill.ok{
+      border-color: rgba(34,197,94,.35);
+      box-shadow: 0 0 0 1px rgba(34,197,94,.16), 0 0 22px rgba(34,197,94,.14);
+    }
+    .pill.bad{
+      border-color: rgba(232,28,90,.35);
+      box-shadow: 0 0 0 1px rgba(232,28,90,.16), 0 0 22px rgba(232,28,90,.14);
+    }
+
+    /* LEFT: match list */
+    .left{
+      display:flex; flex-direction:column;
+      min-width:0;
+    }
+
+    .search{
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      display:flex; gap:10px; align-items:center;
+    }
+
+    .search input{
+      width:100%;
+      background: rgba(0,0,0,.20);
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:10px 12px;
+      color:var(--txt);
+      outline:none;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.03) inset;
+    }
+    .search input:focus{
+      border-color: rgba(232,28,90,.35);
+      box-shadow: 0 0 0 2px rgba(232,28,90,.18);
+    }
+
+    .list{
+      padding:12px;
+      overflow:auto;
+      height: calc(100vh - 96px);
+    }
+
+    .match{
+      background: var(--match);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:14px;
+      padding:12px;
+      margin-bottom:10px;
+      cursor:pointer;
+      box-shadow: 0 16px 40px rgba(0,0,0,.40);
+      transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+
+    .match:hover{
+      transform: translateY(-1px);
+      border-color: rgba(232,28,90,.28);
+      box-shadow: 0 18px 50px rgba(0,0,0,.52), 0 0 26px rgba(232,28,90,.10);
+    }
+
+    .match.active{
+      border-color: rgba(232,28,90,.55);
+      box-shadow: 0 18px 60px rgba(0,0,0,.60), 0 0 0 1px rgba(232,28,90,.18), 0 0 30px rgba(232,28,90,.18);
+    }
+
+    .mrow{
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
+    }
+    .teams{
+      display:flex; flex-direction:column; gap:6px;
+      font-weight:700;
+      letter-spacing:.2px;
+      min-width:0;
+    }
+    .teams div{
+      display:flex; align-items:center; gap:8px;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 2px rgba(232,28,90,.18), 0 0 18px rgba(232,28,90,.22);
+      flex:0 0 auto;
+    }
+
+    .meta{
+      display:flex; flex-direction:column; align-items:flex-end; gap:6px;
+      font-size:12px; color:var(--muted);
+    }
+    .score{
+      font-size:16px; color:var(--txt);
+      font-weight:900;
+      letter-spacing:.5px;
+    }
+
+    .live{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(232,28,90,.35);
+      background: rgba(232,28,90,.10);
+      box-shadow: 0 0 16px rgba(232,28,90,.14);
+      color: var(--txt);
+    }
+    .pulse{
+      width:8px; height:8px; border-radius:999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 0 rgba(232,28,90,.55);
+      animation: pulse 1.35s infinite;
+    }
+    @keyframes pulse{
+      0%{ box-shadow: 0 0 0 0 rgba(232,28,90,.55); }
+      70%{ box-shadow: 0 0 0 12px rgba(232,28,90,0); }
+      100%{ box-shadow: 0 0 0 0 rgba(232,28,90,0); }
+    }
+
+    /* CENTER: pitch */
+    .center{ display:flex; flex-direction:column; min-width:0; }
+    .canvasWrap{ position:relative; height: calc(100vh - 62px); }
+    canvas{
+      width:100%;
+      height:100%;
+      display:block;
+      background: #1a1a1a;
+    }
+    .overlay{
+      position:absolute; left:14px; bottom:14px;
+      display:flex; flex-direction:column; gap:6px;
+      pointer-events:none;
+    }
+    .ovTitle{
+      font-weight:900; letter-spacing:.4px;
+      font-size:14px;
+      color: rgba(255,255,255,.92);
+      text-shadow: 0 12px 30px rgba(0,0,0,.55);
+    }
+    .ovSub{
+      font-size:12px; color: rgba(255,255,255,.62);
+      text-shadow: 0 12px 30px rgba(0,0,0,.55);
+    }
+
+    /* RIGHT: snapshot + event log */
+    .right{ display:flex; flex-direction:column; min-width:0; }
+    .info{
+      padding:12px 14px;
+    }
+    .row{
+      display:flex; justify-content:space-between; gap:10px;
+      margin:7px 0;
+      align-items:center;
+    }
+    .label{ font-size:12px; color:var(--muted); }
+    .val{ font-weight:800; letter-spacing:.2px; }
+    .bigScore{
+      font-size:28px; font-weight:900; letter-spacing:.6px;
+      margin-top:10px;
+    }
+    .log{
+      border-top:1px solid var(--line);
+      padding:12px 14px;
+      overflow:auto;
+      height: 45vh;
+    }
+    .evt{
+      padding:9px 10px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.03);
+      margin-bottom:8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .evt b{ font-size:12px; letter-spacing:.3px; }
+    .evt .m{ font-size:12px; color:var(--muted); margin-top:4px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- LEFT -->
+    <div class="card left">
+      <div class="top">
+        <div>
+          <div class="title">Live Matches</div>
+          <div class="sub" id="leftSub">waiting...</div>
+        </div>
+        <div class="pill bad" id="connPill">WS: DISCONNECTED</div>
+      </div>
+
+      <div class="search">
+        <input id="q" placeholder="Takım / game_id ara..." />
+      </div>
+
+      <div class="list" id="list"></div>
+    </div>
+
+    <!-- CENTER -->
+    <div class="card center">
+      <div class="top">
+        <div>
+          <div class="title" id="matchName">Select a match</div>
+          <div class="sub" id="matchSub">-</div>
+        </div>
+        <div class="pill" id="tickPill">TICK: -</div>
+      </div>
+
+      <div class="canvasWrap">
+        <canvas id="c"></canvas>
+        <div class="overlay">
+          <div class="ovTitle" id="ovEvent">-</div>
+          <div class="ovSub" id="ovMeta">-</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="card right">
+      <div class="top">
+        <div>
+          <div class="title">Snapshot</div>
+          <div class="sub">game_id bazlı animasyon</div>
+        </div>
+        <div class="pill" id="gidPill">game_id: -</div>
+      </div>
+
+      <div class="info">
+        <div class="row"><div class="label">Minute</div><div class="val" id="minTxt">-</div></div>
+        <div class="row"><div class="label">Team 1</div><div class="val" id="t1">-</div></div>
+        <div class="row"><div class="label">Team 2</div><div class="val" id="t2">-</div></div>
+        <div class="bigScore" id="scoreTxt">0 - 0</div>
+      </div>
+
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+<script>
+/** =======================
+ * STATE
+ * ======================= */
+const state = {
+  connected:false,
+  selectedGameId:null,
+
+  matches: new Map(), // game_id -> match
+  eventsByGame: new Map(), // game_id -> last events
+
+  // render state for selected game
+  match: { team1:"-", team2:"-", score1:0, score2:0, minute:"-" },
+  lastEvent: null,
+  eventTextAlpha: 0, // Event text için alpha
+  eventDotPulse: 0, // Event noktası için pulse efekti
+  activeTeam: null, // Hangi takım aktif (1 veya 2)
+
+  ball: { x:.5, y:.5, tx:.5, ty:.5, glow:0, pulse:0.5 }, // pulse başlangıçta 0.5
+  flash: 0
+};
+
+// Event isimlerini Türkçeleştir
+const EVENT_NAMES_TR = {
+  "ATTACK": "Atak",
+  "DANGEROUS_ATTACK": "Tehlikeli Atak",
+  "CORNER": "Korner",
+  "FREE_KICK_ZONE": "Serbest Vuruş",
+  "SHOT_ON_TARGET": "İsabetli Şut",
+  "SAFE_POSSESSION": "Top Kontrolü",
+  "THROW_IN": "Taç Atışı",
+  "FOUL": "Faul",
+  "PENALTY": "Penaltı"
+};
+
+const $ = (id)=>document.getElementById(id);
+function setConn(ok){
+  state.connected = ok;
+  const p = $("connPill");
+  p.textContent = ok ? "WS: CONNECTED" : "WS: DISCONNECTED";
+  p.classList.toggle("ok", ok);
+  p.classList.toggle("bad", !ok);
+}
+
+function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+function lerp(a,b,t){ return a + (b-a)*t; }
+
+/** =======================
+ * CANVAS
+ * ======================= */
+const canvas = $("c");
+const ctx = canvas.getContext("2d");
+
+// Logo yükleme
+const logoImg = new Image();
+logoImg.src = 'masisbet.png';
+let logoLoaded = false;
+logoImg.onload = () => {
+  logoLoaded = true;
+  console.log('[LOGO] masisbet.png loaded successfully');
+};
+logoImg.onerror = () => {
+  console.error('[LOGO] Failed to load masisbet.png');
+};
+
+function resize(){
+  const r = canvas.getBoundingClientRect();
+  canvas.width = Math.floor(r.width * devicePixelRatio);
+  canvas.height = Math.floor(r.height * devicePixelRatio);
+}
+addEventListener("resize", resize);
+resize();
+
+function roundRect(ctx, x, y, w, h, r, fill, stroke){
+  const rr = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr, y);
+  ctx.arcTo(x+w, y, x+w, y+h, rr);
+  ctx.arcTo(x+w, y+h, x, y+h, rr);
+  ctx.arcTo(x, y+h, x, y, rr);
+  ctx.arcTo(x, y, x+w, y, rr);
+  ctx.closePath();
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
+}
+
+function drawPitch(){
+  const w=canvas.width, h=canvas.height;
+  ctx.clearRect(0,0,w,h);
+const pad = Math.min(w,h)*0.08;
+const outerPad = pad * 0.3;
+const x0=pad, y0=pad, pw=w-pad*2, ph=h-pad*2;
+
+// DIŞ ALAN (taç/korner alanı) - Koyu yeşil
+ctx.fillStyle = "#1a4d1e";
+ctx.fillRect(x0-outerPad, y0-outerPad, pw+outerPad*2, ph+outerPad*2);
+
+// SAHA - Düz koyu yeşil (şerit yok)
+ctx.fillStyle = "#2a6b2e";
+ctx.fillRect(x0, y0, pw, ph);
+
+  // Çizgiler - #8CC490
+  ctx.strokeStyle="#8CC490";
+  ctx.lineWidth=2.5*devicePixelRatio;
+  
+  // Dış çizgi - DİKDÖRTGEN
+  ctx.strokeRect(x0, y0, pw, ph);
+
+  // Orta çizgi
+  ctx.beginPath();
+  ctx.moveTo(x0+pw/2,y0);
+  ctx.lineTo(x0+pw/2,y0+ph);
+  ctx.stroke();
+
+  // Orta daire
+  ctx.beginPath();
+  ctx.arc(x0+pw/2,y0+ph/2,Math.min(pw,ph)*0.12,0,Math.PI*2);
+  ctx.stroke();
+  
+  // Orta nokta
+  ctx.fillStyle="#8CC490";
+  ctx.beginPath();
+  ctx.arc(x0+pw/2,y0+ph/2,3*devicePixelRatio,0,Math.PI*2);
+  ctx.fill();
+
+  // Ceza sahaları
+  const boxW=pw*0.18, boxH=ph*0.45;
+  ctx.strokeRect(x0, y0+(ph-boxH)/2, boxW, boxH);
+  ctx.strokeRect(x0+pw-boxW, y0+(ph-boxH)/2, boxW, boxH);
+  
+  // Küçük ceza sahaları
+  const smallBoxW=pw*0.08, smallBoxH=ph*0.25;
+  ctx.strokeRect(x0, y0+(ph-smallBoxH)/2, smallBoxW, smallBoxH);
+  ctx.strokeRect(x0+pw-smallBoxW, y0+(ph-smallBoxH)/2, smallBoxW, smallBoxH);
+  
+  // Penaltı noktaları
+  ctx.beginPath();
+  ctx.arc(x0+pw*0.12, y0+ph/2, 2.5*devicePixelRatio, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x0+pw-pw*0.12, y0+ph/2, 2.5*devicePixelRatio, 0, Math.PI*2);
+  ctx.fill();
+
+  // Kaleler
+  const goalW=pw*0.02, goalH=ph*0.12;
+  ctx.fillStyle="rgba(140,196,144,0.15)"; // #8CC490 şeffaf
+  ctx.fillRect(x0-goalW, y0+(ph-goalH)/2, goalW, goalH);
+  ctx.strokeRect(x0-goalW, y0+(ph-goalH)/2, goalW, goalH);
+  ctx.fillRect(x0+pw, y0+(ph-goalH)/2, goalW, goalH);
+  ctx.strokeRect(x0+pw, y0+(ph-goalH)/2, goalW, goalH);
+
+  // Korner yayları
+  const cornerR = pw*0.015;
+  ctx.beginPath(); ctx.arc(x0, y0, cornerR, 0, Math.PI/2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x0, y0+ph, cornerR, Math.PI*1.5, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x0+pw, y0, cornerR, Math.PI/2, Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x0+pw, y0+ph, cornerR, Math.PI, Math.PI*1.5); ctx.stroke();
+
+  // LOGO - ÇİZGİLERDEN SONRA, ÜST KATMANDA
+  if (logoLoaded){
+    ctx.save();
+    ctx.globalAlpha = 0.16; // Görünür ama şeffaf
+    const logoWidth = pw * 0.4; // Genişlik: sahanın %70'i (GENİŞ)
+    const logoHeight = ph * 0.2; // Yükseklik: sahanın %40'ı
+    const logoX = x0 + (pw - logoWidth) / 2;
+    const logoY = y0 + (ph - logoHeight) / 2;
+    ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
+    ctx.restore();
+  }
+
+  // Ambient glow - #3970FF
+  if (state.ball.glow>0){
+    const g = state.ball.glow;
+    const rg = ctx.createRadialGradient(w*0.5,h*0.5,0,w*0.5,h*0.5,Math.max(w,h)*0.65);
+    rg.addColorStop(0, `rgba(57,112,255,${0.15*g})`);
+    rg.addColorStop(1, "rgba(57,112,255,0)");
+    ctx.fillStyle=rg;
+    ctx.fillRect(0,0,w,h);
+  }
+
+  // Flash - #3970FF
+  if (state.flash>0){
+    ctx.fillStyle=`rgba(57,112,255,${0.25*state.flash})`;
+    ctx.fillRect(0,0,w,h);
+  }
+
+  const bx = x0 + pw*state.ball.x;
+  const by = y0 + ph*state.ball.y;
+
+  // Pulse ring - #3970FF (daha küçük, yanıp sönen)
+  if (state.ball.pulse>0){
+    const p=state.ball.pulse;
+    const pulseAnim = Math.abs(Math.sin(Date.now() / 400)); // Yanıp sönme
+    ctx.beginPath();
+    ctx.arc(bx,by,(12+8*(1-p))*devicePixelRatio,0,Math.PI*2); // 12-20px (daha küçük)
+    ctx.strokeStyle=`rgba(57,112,255,${(0.5 + pulseAnim*0.3)*p})`; // Yanıp sönen
+    ctx.lineWidth=2.5*devicePixelRatio; // Daha ince
+    ctx.stroke();
+  }
+
+  // Top gölge (küçültüldü)
+  const shadowGrad = ctx.createRadialGradient(bx,by+1.5*devicePixelRatio,0,bx,by,12*devicePixelRatio);
+  shadowGrad.addColorStop(0, "rgba(0,0,0,0.4)");
+  shadowGrad.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle=shadowGrad;
+  ctx.beginPath(); ctx.arc(bx,by+1.5*devicePixelRatio,12*devicePixelRatio,0,Math.PI*2); ctx.fill();
+// Top - #3970FF rengi ve yanıp sönen (DAHA KÜÇÜK)
+const pulseIntensity = Math.abs(Math.sin(Date.now() / 300)); // Yanıp sönme
+const ballRadius = 10*devicePixelRatio; // 16 → 10 (daha küçük)
+const ballGlow = ctx.createRadialGradient(bx,by,0,bx,by,ballRadius);
+ballGlow.addColorStop(0, `rgba(57, 112, 255, ${0.9 + pulseIntensity * 0.1})`);
+ballGlow.addColorStop(0.5, `rgba(57, 112, 255, ${0.8 + pulseIntensity * 0.2})`);
+ballGlow.addColorStop(1, `rgba(40, 80, 200, ${0.3 + pulseIntensity * 0.2})`);
+ctx.fillStyle=ballGlow;
+ctx.beginPath(); ctx.arc(bx,by,ballRadius,0,Math.PI*2); ctx.fill();
+
+// Top dış çizgi - #3970FF
+ctx.strokeStyle="rgba(57,112,255,0.6)";
+ctx.lineWidth=1.5*devicePixelRatio; // Daha ince
+ctx.beginPath(); ctx.arc(bx,by,ballRadius,0,Math.PI*2); ctx.stroke();
+
+  
+  // EVENT TEXT - ORTADA BÜYÜK (Arka plan YOK, sadece text)
+  if (state.lastEvent && state.eventTextAlpha > 0){
+    ctx.save();
+    ctx.globalAlpha = state.eventTextAlpha;
+    
+    const textW = pw * 0.5;
+    const textH = ph * 0.18;
+    const textX = x0 + (pw - textW) / 2;
+    const textY = y0 + (ph - textH) / 2;
+    
+    // Event adı - Türkçe (BEYAZ)
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `700 ${45*devicePixelRatio}px Rajdhani`;
+    const eventNameTR = EVENT_NAMES_TR[state.lastEvent.etype] || state.lastEvent.etype;
+    
+    // Text gölge
+    ctx.shadowColor = "rgba(0,0,0,0.8)";
+    ctx.shadowBlur = 12*devicePixelRatio;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 3*devicePixelRatio;
+    
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText(eventNameTR, x0 + pw/2, y0 + ph/2 - 15*devicePixelRatio);
+    
+    // Takım adı (BEYAZ)
+    ctx.font = `600 ${22*devicePixelRatio}px Rajdhani`;
+    const teamName = state.lastEvent.team === 1 ? state.match.team1 :
+                     state.lastEvent.team === 2 ? state.match.team2 : "-";
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText(teamName, x0 + pw/2, y0 + ph/2 + 22*devicePixelRatio);
+    
+    ctx.restore();
+  }
+}
+
+function animLoop(){
+  // Daha yumuşak hareket için lerp değeri azaltıldı
+  state.ball.x = lerp(state.ball.x, state.ball.tx, 0.05);
+  state.ball.y = lerp(state.ball.y, state.ball.ty, 0.05);
+
+  state.ball.glow = clamp(state.ball.glow - 0.012, 0, 1);
+  state.ball.pulse = Math.max(0.3, state.ball.pulse - 0.020); // Min 0.3 (sürekli halka)
+  state.flash     = clamp(state.flash     - 0.020, 0, 1);
+  
+  // Event noktası pulse animasyonu
+  state.eventDotPulse = clamp(state.eventDotPulse - 0.015, 0, 1);
+
+  drawPitch();
+  requestAnimationFrame(animLoop);
+}
+animLoop();
+
+/** =======================
+ * EVENT -> BALL
+ * ======================= */
+function setBallByEvent(evtType, team){
+  // Aktif takımı set et (saha rengi için)
+  state.activeTeam = team;
+  
+  // Team 1 = sol taraf, sağa atak | Team 2 = sağ taraf, sola atak
+  let x=.50, y=.50;
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+
+  if (evtType==="SAFE_POSSESSION"){
+    x = (team===1) ? rnd(.20,.40) : rnd(.60,.80);
+    y = rnd(.35,.65);
+  } else if (evtType==="ATTACK"){
+    x = (team===1) ? rnd(.60,.75) : rnd(.25,.40);
+    y = rnd(.25,.75);
+    state.ball.glow = Math.max(state.ball.glow, .35);
+  } else if (evtType==="DANGEROUS_ATTACK"){
+    x = (team===1) ? rnd(.75,.88) : rnd(.12,.25);
+    y = rnd(.30,.70);
+    state.ball.glow = Math.max(state.ball.glow, .75);
+    state.ball.pulse = Math.max(state.ball.pulse, .78);
+  } else if (evtType==="FREE_KICK_ZONE"){
+    x = (team===1) ? rnd(.65,.80) : rnd(.20,.35);
+    y = rnd(.33,.67);
+    state.ball.pulse = Math.max(state.ball.pulse, .60);
+  } else if (evtType==="CORNER"){
+    // TAM KÖŞE - korner çizgisinde
+    x = (team===1) ? .98 : .02;
+    y = Math.random() > .5 ? .02 : .98; // Üst veya alt köşe
+    state.ball.pulse = Math.max(state.ball.pulse, .70);
+  } else if (evtType==="SHOT_ON_TARGET"){
+    x = (team===1) ? rnd(.85,.92) : rnd(.08,.15);
+    y = rnd(.40,.60);
+    state.ball.pulse = Math.max(state.ball.pulse, .85);
+    state.ball.glow = Math.max(state.ball.glow, .65);
+  } else if (evtType==="PENALTY"){
+    x = (team===1) ? .88 : .12;
+    y = .50;
+    state.ball.pulse = Math.max(state.ball.pulse, 1.0);
+    state.ball.glow = Math.max(state.ball.glow, .9);
+  } else if (evtType==="THROW_IN"){
+    // TAÇ - yan çizginin TAM ÜZERİNDE
+    x = (team===1) ? rnd(.50,.70) : rnd(.30,.50);
+    y = Math.random() > .5 ? .01 : .99; // Üst veya alt çizgi
+    state.ball.pulse = Math.max(state.ball.pulse, .40);
+  } else if (evtType==="FOUL"){
+    x = (team===1) ? rnd(.55,.75) : rnd(.25,.45);
+    y = rnd(.30,.70);
+    state.ball.pulse = Math.max(state.ball.pulse, .50);
+  }
+
+  state.ball.tx = clamp(x,.04,.96);
+  state.ball.ty = clamp(y,.06,.94);
+  
+  console.log(`[BALL] Event: ${evtType}, Team: ${team}, Moving to (${x.toFixed(2)}, ${y.toFixed(2)})`);
+}
+
+/** =======================
+ * UI
+ * ======================= */
+function fmtTime(ms){
+  const d = new Date(ms);
+  return d.toLocaleTimeString();
+}
+
+function setSelected(gid){
+  state.selectedGameId = gid;
+  $("gidPill").textContent = `game_id: ${gid || "-"}`;
+
+  // apply match snapshot
+  const m = state.matches.get(gid);
+  if (m){
+    state.match.team1 = m.team1 || "Team 1";
+    state.match.team2 = m.team2 || "Team 2";
+    state.match.score1 = m.score1 || 0;
+    state.match.score2 = m.score2 || 0;
+    state.match.minute = m.minute || "-";
+
+    $("matchName").textContent = m.title || `${state.match.team1} vs ${state.match.team2}`;
+    $("matchSub").textContent = `${m.tournament || "-"} • ${m.sport || "-"}`;
+    $("t1").textContent = state.match.team1;
+    $("t2").textContent = state.match.team2;
+    $("scoreTxt").textContent = `${state.match.score1} - ${state.match.score2}`;
+    $("minTxt").textContent = state.match.minute || "-";
+  }
+
+  // redraw list active state
+  renderList();
+  renderLog();
+}
+
+function renderList(){
+  const q = ($("q").value || "").toLowerCase().trim();
+  const list = $("list");
+
+  const arr = Array.from(state.matches.values())
+    .sort((a,b)=> (b.last_update_ms||0) - (a.last_update_ms||0))
+    .filter(m=>{
+      if (!q) return true;
+      return (String(m.game_id).includes(q) ||
+              (m.title||"").toLowerCase().includes(q) ||
+              (m.team1||"").toLowerCase().includes(q) ||
+              (m.team2||"").toLowerCase().includes(q));
+    });
+
+  $("leftSub").textContent = `${arr.length} match`;
+
+  list.innerHTML = arr.map(m=>{
+    const active = (m.game_id === state.selectedGameId) ? "active" : "";
+    const isLive = m.is_live ? `<span class="live"><span class="pulse"></span>LIVE</span>` : "";
+    const minute = m.minute ? `${m.minute}'` : "-";
+    return `
+      <div class="match ${active}" data-gid="${m.game_id}">
+        <div class="mrow">
+          <div class="teams">
+            <div><span class="dot"></span><span title="${m.team1||''}">${m.team1||'Team 1'}</span></div>
+            <div><span class="dot" style="opacity:.55"></span><span title="${m.team2||''}">${m.team2||'Team 2'}</span></div>
+          </div>
+          <div class="meta">
+            <div class="score">${m.score1||0} - ${m.score2||0}</div>
+            <div>${isLive} <span style="margin-left:6px">${minute}</span></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  // click handlers
+  list.querySelectorAll(".match").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      const gid = el.getAttribute("data-gid");
+      setSelected(gid);
+    });
+  });
+}
+
+function renderLog(){
+  const gid = state.selectedGameId;
+  const log = $("log");
+  const arr = state.eventsByGame.get(gid) || [];
+  log.innerHTML = arr.map(e=>{
+    return `<div class="evt"><b>${e.etype}</b><div class="m">team=${e.team ?? "-"} • ${fmtTime(e.ts)}</div></div>`;
+  }).join("");
+}
+
+/** =======================
+ * WS
+ * ======================= */
+function tryParse(s){
+  try{ return JSON.parse(s); }catch{ return null; }
+}
+
+(function connect(){
+  const ws = new WebSocket("ws://127.0.0.1:8777/frontend");
+
+  ws.onopen = ()=> setConn(true);
+  ws.onerror = ()=> setConn(false);
+  ws.onclose = ()=> { setConn(false); setTimeout(connect, 800); };
+
+  ws.onmessage = (e)=>{
+    const msg = tryParse(e.data);
+    if (!msg) return;
+
+    if (msg.type === "matches" && Array.isArray(msg.matches)){
+      for (const m of msg.matches){
+        state.matches.set(String(m.game_id), m);
+      }
+      // ilk seçim: en güncel maç
+      if (!state.selectedGameId){
+        const first = msg.matches[0];
+        if (first) setSelected(String(first.game_id));
+      } else {
+        // seçili maç update
+        const m = state.matches.get(state.selectedGameId);
+        if (m){
+          $("matchName").textContent = m.title || `${m.team1} vs ${m.team2}`;
+          $("matchSub").textContent = `${m.tournament || "-"} • ${m.sport || "-"}`;
+          $("t1").textContent = m.team1 || "-";
+          $("t2").textContent = m.team2 || "-";
+          $("scoreTxt").textContent = `${m.score1||0} - ${m.score2||0}`;
+          $("minTxt").textContent = m.minute || "-";
+        }
+      }
+      renderList();
+    }
+
+    if (msg.type === "events" && Array.isArray(msg.events)){
+      for (const ev of msg.events){
+        const gid = String(ev.game_id);
+        if (!state.eventsByGame.has(gid)) state.eventsByGame.set(gid, []);
+        const arr = state.eventsByGame.get(gid);
+
+        arr.unshift(ev);
+        arr.splice(40); // keep last 40
+
+        // selected match anim
+        if (gid === state.selectedGameId){
+          state.lastEvent = ev;
+          state.eventTextAlpha = 1.0; // Event text'i göster
+          state.eventDotPulse = 1.0; // Nokta pulse'u tetikle
+          console.log(`[EVENT] ${ev.etype} detected for game ${gid}, team=${ev.team}, alpha set to 1.0`);
+          $("ovEvent").textContent = ev.etype;
+          $("ovMeta").textContent = `team=${ev.team ?? "-"} • ${fmtTime(ev.ts)}`;
+          setBallByEvent(ev.etype, ev.team);
+          renderLog();
+
+          // küçük UX: tick pill
+          $("tickPill").textContent = "TICK: ON";
+          clearTimeout(window.__tickOff);
+          window.__tickOff = setTimeout(()=> $("tickPill").textContent="TICK: -", 800);
+        }
+      }
+    }
+  };
+})();
+
+$("q").addEventListener("input", renderList);
+</script>
+</body>
+</html>
