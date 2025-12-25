@@ -1,9 +1,14 @@
 import asyncio, json, re
 import websockets
 from playwright.async_api import async_playwright
+import os
 
 SITE_URL = "https://www.hepbet103.com/tr/live/sport/Basketball/"
-INGEST_URL = "wss://animasyon.onrender.com/ingest"
+# Lokal test için RENDER_URL=false environment variable kullan
+IS_RENDER = os.getenv("RENDER_URL", "true").lower() == "true"
+INGEST_URL = "wss://animasyon.onrender.com/ingest" if IS_RENDER else "ws://localhost:8777/ingest"
+
+print(f"[CONFIG] 🏀 Basketball scraper - INGEST_URL: {INGEST_URL}")
 
 def safe_json(x):
     try:
