@@ -4,14 +4,12 @@ import os
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import threading
+from http import HTTPStatus
 
 import websockets
 
 HOST = "0.0.0.0"
 PORT = int(os.getenv("PORT", 8777))
-WS_PORT = PORT + 1  # WebSocket için ayrı port
 
 def jloads_maybe(s: Any) -> Any:
     if isinstance(s, (dict, list)):
@@ -241,35 +239,12 @@ class Engine:
 
 engine = Engine()
 
-# Simple HTTP server for health checks
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path in ["/", "/health"]:
-            self.send_response(200)
-            self.send_header("Content-type", "text/plain")
-            self.end_headers()
-            self.wfile.write(b"OK")
-        else:
-            self.send_response(404)
-            self.end_headers()
-    
-    def do_HEAD(self):
-        if self.path in ["/", "/health"]:
-            self.send_response(200)
-            self.send_header("Content-type", "text/plain")
-            self.end_headers()
-        else:
-            self.send_response(404)
-            self.end_headers()
-    
-    def log_message(self, format, *args):
-        # Suppress default logging
-        pass
-
-def run_http_server():
-    server = HTTPServer((HOST, PORT), HealthCheckHandler)
-    print(f"[HTTP] Health check server: http://{HOST}:{PORT}/health")
-    server.serve_forever()
+async def process_request(path, request_headers):
+    """HTTP isteklerini ele al (health check için)"""
+    if path in ["/", "/health"]:
+        return (HTTPStatus.OK, [], b"OK\n")
+    # WebSocket yükseltmesine izin ver
+    return None
 
 async def handler(ws):
     path = ws_path(ws)
@@ -315,16 +290,21 @@ async def handler(ws):
     await ws.close()
 
 async def main():
-    # HTTP sunucusunu ayrı thread'de başlat
-    http_thread = threading.Thread(target=run_http_server, daemon=True)
-    http_thread.start()
+    print(f"[SERVER] Starting on {HOST}:{PORT}")
+    print(f"  - HTTP health check: http://{HOST}:{PORT}/health")
+    print(f"  - WebSocket frontend: ws://{HOST}:{PORT}/frontend")
+    print(f"  - WebSocket ingest: ws://{HOST}:{PORT}/ingest")
     
-    print(f"[WebSocket] server: ws://{HOST}:{WS_PORT}")
-    print(f"  - frontend: ws://{HOST}:{WS_PORT}/frontend")
-    print(f"  - ingest:   ws://{HOST}:{WS_PORT}/ingest")
-    
-    # WebSocket server'ı başlat
-    async with websockets.serve(handler, HOST, WS_PORT, ping_interval=20, ping_timeout=20, max_size=8_000_000):
+    # WebSocket server'ı process_request callback ile başlat
+    async with websockets.serve(
+        handler,
+        HOST,
+        PORT,
+        process_request=process_request,
+        ping_interval=20,
+        ping_timeout=20,
+        max_size=8_000_000
+    ):
         await asyncio.Future()
 
 if __name__ == "__main__":
