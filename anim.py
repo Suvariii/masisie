@@ -3,7 +3,7 @@ import websockets
 from playwright.async_api import async_playwright
 
 SITE_URL = "https://www.hepbet103.com/tr/live/sport/Soccer/"
-INGEST_URL = "ws://127.0.0.1:8777/ingest"
+INGEST_URL = "wss://animasyon.onrender.com/ingest"
 
 def safe_json(x):
     try:
