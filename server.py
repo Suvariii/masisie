@@ -82,19 +82,31 @@ class Event:
     team: Optional[int]
     ts: int
 
-def collect_games(node: Any, out: Dict[str, dict]) -> None:
+def collect_games(node: Any, out: Dict[str, dict], sport_id: str = "1") -> None:
+    """
+    Game'leri toplarken sport_id'yi de taşı
+    sport -> 1: Soccer, 2: Basketball
+    """
     if isinstance(node, dict):
         for k, v in node.items():
-            if k == "game" and isinstance(v, dict):
+            if k == "sport" and isinstance(v, dict):
+                # Sport seviyesindeyiz, her sport_id için recursive
+                for sid, sport_data in v.items():
+                    collect_games(sport_data, out, sport_id=str(sid))
+            elif k == "game" and isinstance(v, dict):
+                # Game seviyesine ulaştık
                 for gid, gobj in v.items():
                     gid = str(gid).strip()
                     if gid and isinstance(gobj, dict):
-                        out[gid] = gobj
+                        # Game object'e sport_id'yi ekle
+                        gobj_with_sport = gobj.copy()
+                        gobj_with_sport["_sport_id"] = sport_id
+                        out[gid] = gobj_with_sport
             else:
-                collect_games(v, out)
+                collect_games(v, out, sport_id)
     elif isinstance(node, list):
         for it in node:
-            collect_games(it, out)
+            collect_games(it, out, sport_id)
 
 def detect_score_from_game_obj(gobj: dict) -> Optional[Tuple[int, int]]:
     info = gobj.get("info")
@@ -160,28 +172,16 @@ class Engine:
             g = self.upsert_game(gid)
             g.last_update_ms = ts
 
-            # Sport türünü tespit et (data yapısından)
-            # sport -> 1: Soccer, 2: Basketball
-            sport_id = None
-            try:
-                # Üst data yapısında sport dict'i var mı kontrol et
-                if isinstance(data, dict) and "sport" in data:
-                    sport_dict = data.get("sport")
-                    if isinstance(sport_dict, dict):
-                        # İlk key'i al (sport_id)
-                        keys = list(sport_dict.keys())
-                        if keys:
-                            sport_id = str(keys[0])
-                            print(f"[DEBUG] Detected sport_id: {sport_id} for game {gid}")
-            except Exception as e:
-                print(f"[DEBUG] Sport detection error: {e}")
+            # Sport türünü game object'ten al (_sport_id)
+            sport_id = gobj.get("_sport_id", "1")
             
             # Sport_id'ye göre sport türünü belirle
             if sport_id == "2":
                 g.sport = "Basketball"
-                print(f"[SPORT] Game {gid} -> Basketball")
+                print(f"[SPORT] 🏀 Game {gid} -> Basketball")
             else:
                 g.sport = "Soccer"
+                print(f"[SPORT] ⚽ Game {gid} -> Soccer")
 
             # Takım isimlerini çek
             team_info = gobj.get("team1_name") or gobj.get("team1")
