@@ -30,7 +30,8 @@ def safe_int(x, default=0) -> int:
     except Exception:
         return default
 
-STAT_TO_EVENT = {
+# Futbol event mapping
+SOCCER_STAT_TO_EVENT = {
     "attack": "ATTACK",
     "dangerous_attack": "DANGEROUS_ATTACK",
     "corner": "CORNER",
@@ -41,6 +42,24 @@ STAT_TO_EVENT = {
     "foul": "FOUL",
     "penalty": "PENALTY",
 }
+
+# Basketbol event mapping
+BASKETBALL_STAT_TO_EVENT = {
+    "attack": "ATTACK",
+    "shot_on_target": "SHOT_ON_TARGET",
+    "foul": "FOUL",
+    "free_throw": "FREE_THROW",
+    "turnover": "TURNOVER",
+    "rebound": "REBOUND",
+    "three_point": "THREE_POINT",
+    "two_point": "TWO_POINT",
+}
+
+def get_stat_mapping(sport: str) -> dict:
+    """Sport türüne göre event mapping döndür"""
+    if sport == "Basketball":
+        return BASKETBALL_STAT_TO_EVENT
+    return SOCCER_STAT_TO_EVENT
 
 @dataclass
 class Game:
@@ -141,6 +160,23 @@ class Engine:
             g = self.upsert_game(gid)
             g.last_update_ms = ts
 
+            # Sport türünü tespit et (data yapısından)
+            # sport -> 1: Soccer, 2: Basketball
+            sport_id = None
+            try:
+                # data.sport.{sport_id} yapısından sport_id'yi al
+                if isinstance(data, dict) and "sport" in data:
+                    sport_dict = data.get("sport")
+                    if isinstance(sport_dict, dict):
+                        sport_id = list(sport_dict.keys())[0] if sport_dict else None
+            except:
+                pass
+            
+            if sport_id == "2":
+                g.sport = "Basketball"
+            else:
+                g.sport = "Soccer"
+
             # Takım isimlerini çek
             team_info = gobj.get("team1_name") or gobj.get("team1")
             if team_info:
@@ -184,8 +220,11 @@ class Engine:
 
             new_stats = normalize_stats(gobj)
             if new_stats:
+                # Sport türüne göre event mapping seç
+                stat_mapping = get_stat_mapping(g.sport)
+                
                 for sname, tvals in new_stats.items():
-                    if sname not in STAT_TO_EVENT:
+                    if sname not in stat_mapping:
                         continue
                     prev = g.stats.get(sname, {"1": 0, "2": 0})
                     n1, n2 = tvals.get("1", 0), tvals.get("2", 0)
@@ -193,8 +232,9 @@ class Engine:
                     d1, d2 = n1 - p1, n2 - p2
                     if d1 > 0 or d2 > 0:
                         team = 1 if d1 >= d2 else 2
-                        etype = STAT_TO_EVENT[sname]
-                        repeat = 2 if sname in ("dangerous_attack", "attack") and (d1 + d2) >= 3 else 1
+                        etype = stat_mapping[sname]
+                        # Futbol için özel tekrar mantığı
+                        repeat = 2 if g.sport == "Soccer" and sname in ("dangerous_attack", "attack") and (d1 + d2) >= 3 else 1
                         for _ in range(repeat):
                             events.append(Event(game_id=gid, type=etype, team=team, ts=ts))
 

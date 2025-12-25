@@ -120,6 +120,35 @@
       min-width:0;
     }
 
+    .sportFilter{
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      display:flex; gap:8px;
+    }
+    .sportBtn{
+      flex:1;
+      padding:8px 12px;
+      border-radius:10px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.03);
+      color: var(--muted);
+      cursor:pointer;
+      transition: all .15s ease;
+      font-size:13px;
+      font-weight:600;
+      letter-spacing:.2px;
+    }
+    .sportBtn:hover{
+      border-color: rgba(232,28,90,.25);
+      background: rgba(255,255,255,.05);
+    }
+    .sportBtn.active{
+      border-color: rgba(232,28,90,.45);
+      background: rgba(232,28,90,.12);
+      color: var(--txt);
+      box-shadow: 0 0 16px rgba(232,28,90,.14);
+    }
+
     .search{
       padding:12px 14px;
       border-bottom:1px solid var(--line);
@@ -144,7 +173,7 @@
     .list{
       padding:12px;
       overflow:auto;
-      height: calc(100vh - 96px);
+      height: calc(100vh - 150px);
     }
 
     .match{
@@ -291,6 +320,12 @@
         <div class="pill bad" id="connPill">WS: DISCONNECTED</div>
       </div>
 
+      <div class="sportFilter">
+        <div class="sportBtn active" data-sport="all">⚽🏀 Tümü</div>
+        <div class="sportBtn" data-sport="Soccer">⚽ Futbol</div>
+        <div class="sportBtn" data-sport="Basketball">🏀 Basketbol</div>
+      </div>
+
       <div class="search">
         <input id="q" placeholder="Takım / game_id ara..." />
       </div>
@@ -345,12 +380,13 @@
 const state = {
   connected:false,
   selectedGameId:null,
+  sportFilter: "all", // "all", "Soccer", "Basketball"
 
   matches: new Map(), // game_id -> match
   eventsByGame: new Map(), // game_id -> last events
 
   // render state for selected game
-  match: { team1:"-", team2:"-", score1:0, score2:0, minute:"-" },
+  match: { team1:"-", team2:"-", score1:0, score2:0, minute:"-", sport:"Soccer" },
   lastEvent: null,
   eventTextAlpha: 0, // Event text için alpha
   eventDotPulse: 0, // Event noktası için pulse efekti
@@ -362,6 +398,7 @@ const state = {
 
 // Event isimlerini Türkçeleştir
 const EVENT_NAMES_TR = {
+  // Futbol
   "ATTACK": "Atak",
   "DANGEROUS_ATTACK": "Tehlikeli Atak",
   "CORNER": "Korner",
@@ -370,7 +407,13 @@ const EVENT_NAMES_TR = {
   "SAFE_POSSESSION": "Top Kontrolü",
   "THROW_IN": "Taç Atışı",
   "FOUL": "Faul",
-  "PENALTY": "Penaltı"
+  "PENALTY": "Penaltı",
+  // Basketbol
+  "FREE_THROW": "Serbest Atış",
+  "TURNOVER": "Top Kaybı",
+  "REBOUND": "Ribaund",
+  "THREE_POINT": "3 Sayı",
+  "TWO_POINT": "2 Sayı"
 };
 
 const $ = (id)=>document.getElementById(id);
@@ -424,12 +467,166 @@ function roundRect(ctx, x, y, w, h, r, fill, stroke){
   if (stroke) ctx.stroke();
 }
 
-function drawPitch(){
+function drawBasketballCourt(){
   const w=canvas.width, h=canvas.height;
   ctx.clearRect(0,0,w,h);
-const pad = Math.min(w,h)*0.08;
-const outerPad = pad * 0.3;
-const x0=pad, y0=pad, pw=w-pad*2, ph=h-pad*2;
+  const pad = Math.min(w,h)*0.08;
+  const x0=pad, y0=pad, pw=w-pad*2, ph=h-pad*2;
+
+  // Parke zemin rengi
+  ctx.fillStyle = "#D2691E";
+  ctx.fillRect(x0, y0, pw, ph);
+
+  // Çizgiler - Beyaz
+  ctx.strokeStyle="#FFFFFF";
+  ctx.fillStyle="#FFFFFF";
+  ctx.lineWidth=2.5*devicePixelRatio;
+  
+  // Dış çizgi
+  ctx.strokeRect(x0, y0, pw, ph);
+
+  // Orta çizgi
+  ctx.beginPath();
+  ctx.moveTo(x0+pw/2,y0);
+  ctx.lineTo(x0+pw/2,y0+ph);
+  ctx.stroke();
+
+  // Orta daire
+  ctx.beginPath();
+  ctx.arc(x0+pw/2,y0+ph/2,Math.min(pw,ph)*0.09,0,Math.PI*2);
+  ctx.stroke();
+
+  // 3 point line (sol)
+  const threeR = pw*0.35;
+  ctx.beginPath();
+  ctx.arc(x0, y0+ph/2, threeR, -Math.PI/2.2, Math.PI/2.2);
+  ctx.stroke();
+  
+  // 3 point line (sağ)
+  ctx.beginPath();
+  ctx.arc(x0+pw, y0+ph/2, threeR, Math.PI-Math.PI/2.2, Math.PI+Math.PI/2.2);
+  ctx.stroke();
+
+  // Paint area (sol)
+  const paintW = pw*0.15, paintH = ph*0.25;
+  ctx.strokeRect(x0, y0+(ph-paintH)/2, paintW, paintH);
+  ctx.strokeRect(x0+pw-paintW, y0+(ph-paintH)/2, paintW, paintH);
+
+  // Free throw circles
+  ctx.beginPath();
+  ctx.arc(x0+paintW, y0+ph/2, ph*0.09, 0, Math.PI*2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x0+pw-paintW, y0+ph/2, ph*0.09, 0, Math.PI*2);
+  ctx.stroke();
+
+  // Basket (sol)
+  ctx.lineWidth=3*devicePixelRatio;
+  ctx.beginPath();
+  ctx.arc(x0+pw*0.04, y0+ph/2, 5*devicePixelRatio, 0, Math.PI*2);
+  ctx.fill();
+  // Basket (sağ)
+  ctx.beginPath();
+  ctx.arc(x0+pw-pw*0.04, y0+ph/2, 5*devicePixelRatio, 0, Math.PI*2);
+  ctx.fill();
+
+  // LOGO
+  if (logoLoaded){
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    const logoWidth = pw * 0.4;
+    const logoHeight = ph * 0.2;
+    const logoX = x0 + (pw - logoWidth) / 2;
+    const logoY = y0 + (ph - logoHeight) / 2;
+    ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
+    ctx.restore();
+  }
+
+  // Ambient glow - Turuncu (#FF8C00)
+  if (state.ball.glow>0){
+    const g = state.ball.glow;
+    const rg = ctx.createRadialGradient(w*0.5,h*0.5,0,w*0.5,h*0.5,Math.max(w,h)*0.65);
+    rg.addColorStop(0, `rgba(255,140,0,${0.15*g})`);
+    rg.addColorStop(1, "rgba(255,140,0,0)");
+    ctx.fillStyle=rg;
+    ctx.fillRect(0,0,w,h);
+  }
+
+  // Flash - Turuncu
+  if (state.flash>0){
+    ctx.fillStyle=`rgba(255,140,0,${0.25*state.flash})`;
+    ctx.fillRect(0,0,w,h);
+  }
+
+  const bx = x0 + pw*state.ball.x;
+  const by = y0 + ph*state.ball.y;
+
+  // Pulse ring - Turuncu
+  if (state.ball.pulse>0){
+    const p=state.ball.pulse;
+    const pulseAnim = Math.abs(Math.sin(Date.now() / 400));
+    ctx.beginPath();
+    ctx.arc(bx,by,(12+8*(1-p))*devicePixelRatio,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(255,140,0,${(0.5 + pulseAnim*0.3)*p})`;
+    ctx.lineWidth=2.5*devicePixelRatio;
+    ctx.stroke();
+  }
+
+  // Top gölge
+  const shadowGrad = ctx.createRadialGradient(bx,by+1.5*devicePixelRatio,0,bx,by,12*devicePixelRatio);
+  shadowGrad.addColorStop(0, "rgba(0,0,0,0.4)");
+  shadowGrad.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle=shadowGrad;
+  ctx.beginPath(); ctx.arc(bx,by+1.5*devicePixelRatio,12*devicePixelRatio,0,Math.PI*2); ctx.fill();
+
+  // Top - Turuncu basketbol
+  const pulseIntensity = Math.abs(Math.sin(Date.now() / 300));
+  const ballRadius = 10*devicePixelRatio;
+  const ballGlow = ctx.createRadialGradient(bx,by,0,bx,by,ballRadius);
+  ballGlow.addColorStop(0, `rgba(255, 140, 0, ${0.9 + pulseIntensity * 0.1})`);
+  ballGlow.addColorStop(0.5, `rgba(255, 140, 0, ${0.8 + pulseIntensity * 0.2})`);
+  ballGlow.addColorStop(1, `rgba(200, 100, 0, ${0.3 + pulseIntensity * 0.2})`);
+  ctx.fillStyle=ballGlow;
+  ctx.beginPath(); ctx.arc(bx,by,ballRadius,0,Math.PI*2); ctx.fill();
+
+  ctx.strokeStyle="rgba(255,140,0,0.6)";
+  ctx.lineWidth=1.5*devicePixelRatio;
+  ctx.beginPath(); ctx.arc(bx,by,ballRadius,0,Math.PI*2); ctx.stroke();
+  
+  // EVENT TEXT
+  if (state.lastEvent && state.eventTextAlpha > 0){
+    ctx.save();
+    ctx.globalAlpha = state.eventTextAlpha;
+    
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `700 ${45*devicePixelRatio}px Rajdhani`;
+    const eventNameTR = EVENT_NAMES_TR[state.lastEvent.etype] || state.lastEvent.etype;
+    
+    ctx.shadowColor = "rgba(0,0,0,0.8)";
+    ctx.shadowBlur = 12*devicePixelRatio;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 3*devicePixelRatio;
+    
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText(eventNameTR, x0 + pw/2, y0 + ph/2 - 15*devicePixelRatio);
+    
+    ctx.font = `600 ${22*devicePixelRatio}px Rajdhani`;
+    const teamName = state.lastEvent.team === 1 ? state.match.team1 :
+                     state.lastEvent.team === 2 ? state.match.team2 : "-";
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText(teamName, x0 + pw/2, y0 + ph/2 + 22*devicePixelRatio);
+    
+    ctx.restore();
+  }
+}
+
+function drawSoccerPitch(){
+  const w=canvas.width, h=canvas.height;
+  ctx.clearRect(0,0,w,h);
+  const pad = Math.min(w,h)*0.08;
+  const outerPad = pad * 0.3;
+  const x0=pad, y0=pad, pw=w-pad*2, ph=h-pad*2;
 
 // DIŞ ALAN (taç/korner alanı) - Koyu yeşil
 ctx.fillStyle = "#1a4d1e";
@@ -596,6 +793,15 @@ ctx.beginPath(); ctx.arc(bx,by,ballRadius,0,Math.PI*2); ctx.stroke();
   }
 }
 
+// Wrapper function - sport türüne göre saha çiz
+function drawPitch(){
+  if (state.match.sport === "Basketball"){
+    drawBasketballCourt();
+  } else {
+    drawSoccerPitch();
+  }
+}
+
 function animLoop(){
   // Daha yumuşak hareket için lerp değeri azaltıldı
   state.ball.x = lerp(state.ball.x, state.ball.tx, 0.05);
@@ -692,6 +898,7 @@ function setSelected(gid){
     state.match.score1 = m.score1 || 0;
     state.match.score2 = m.score2 || 0;
     state.match.minute = m.minute || "-";
+    state.match.sport = m.sport || "Soccer";
 
     $("matchName").textContent = m.title || `${state.match.team1} vs ${state.match.team2}`;
     $("matchSub").textContent = `${m.tournament || "-"} • ${m.sport || "-"}`;
@@ -713,6 +920,10 @@ function renderList(){
   const arr = Array.from(state.matches.values())
     .sort((a,b)=> (b.last_update_ms||0) - (a.last_update_ms||0))
     .filter(m=>{
+      // Sport filter
+      if (state.sportFilter !== "all" && m.sport !== state.sportFilter) return false;
+      
+      // Search filter
       if (!q) return true;
       return (String(m.game_id).includes(q) ||
               (m.title||"").toLowerCase().includes(q) ||
@@ -720,7 +931,9 @@ function renderList(){
               (m.team2||"").toLowerCase().includes(q));
     });
 
-  $("leftSub").textContent = `${arr.length} match`;
+  const sportLabel = state.sportFilter === "all" ? "maç" :
+                     state.sportFilter === "Soccer" ? "futbol" : "basketbol";
+  $("leftSub").textContent = `${arr.length} ${sportLabel}`;
 
   list.innerHTML = arr.map(m=>{
     const active = (m.game_id === state.selectedGameId) ? "active" : "";
@@ -768,7 +981,7 @@ function tryParse(s){
 }
 
 (function connect(){
-  const ws = new WebSocket("ws://127.0.0.1:8777/frontend");
+  const ws = new WebSocket("wss://animasyon.onrender.com/frontend");
 
   ws.onopen = ()=> setConn(true);
   ws.onerror = ()=> setConn(false);
@@ -832,6 +1045,20 @@ function tryParse(s){
 })();
 
 $("q").addEventListener("input", renderList);
+
+// Sport filter butonları
+document.querySelectorAll(".sportBtn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const sport = btn.getAttribute("data-sport");
+    state.sportFilter = sport;
+    
+    // Active class güncelle
+    document.querySelectorAll(".sportBtn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    
+    renderList();
+  });
+});
 </script>
 </body>
 </html>
