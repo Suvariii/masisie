@@ -164,10 +164,20 @@ class Engine:
         if not isinstance(data, dict):
             return events
 
+        # DEBUG: Data yapısını logla
+        if "sport" in data:
+            sport_keys = list(data["sport"].keys()) if isinstance(data.get("sport"), dict) else []
+            print(f"[DEBUG] Data has sport keys: {sport_keys}")
+
         extracted: Dict[str, dict] = {}
         collect_games(data, extracted)
         
         print(f"[DEBUG] Collected {len(extracted)} games from swarm data")
+        
+        # İlk birkaç game'in sport_id'sini logla
+        for gid in list(extracted.keys())[:3]:
+            sid = extracted[gid].get("_sport_id", "NOT SET")
+            print(f"[DEBUG] Sample game {gid} has _sport_id={sid}")
 
         ts = now_ms()
         for gid, gobj in extracted.items():
