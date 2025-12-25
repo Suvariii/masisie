@@ -2,7 +2,7 @@ import asyncio, json, re
 import websockets
 from playwright.async_api import async_playwright
 
-SITE_URL = "https://www.hepbet103.com/tr/live/sport/Soccer/"
+SITE_URL = "https://www.hepbet103.com/tr/live/sport/Basketball/"
 INGEST_URL = "wss://animasyon.onrender.com/ingest"
 
 def safe_json(x):
@@ -54,7 +54,7 @@ class AnimationWSManager:
         try:
             ws = await websockets.connect(ws_url, max_size=8_000_000)
             self.active_connections[game_id] = ws
-            print(f"[ANIM] ⚽ Soccer game connected: {game_id} (total: {len(self.active_connections)})")
+            print(f"[ANIM] 🏀 Basketball game connected: {game_id} (total: {len(self.active_connections)})")
             
             # Bu game için mesajları dinle
             asyncio.create_task(self._listen_game(game_id, ws))
@@ -89,7 +89,7 @@ async def run_playwright_sniffer(send_queue: asyncio.Queue):
         ctx = await browser.new_context()
         page = await ctx.new_page()
 
-        print("[PW] ⚽ Soccer - goto:", SITE_URL)
+        print("[PW] 🏀 Basketball - goto:", SITE_URL)
 
         async def on_ws(ws):
             url = ws.url
@@ -104,7 +104,7 @@ async def run_playwright_sniffer(send_queue: asyncio.Queue):
                 match = re.search(r'site_ref=([^&\s]+)', url)
                 if match:
                     anim_manager.site_ref = match.group(1)
-                    print(f"[ANIM] extracted partner_id={anim_manager.partner_id}, site_ref={anim_manager.site_ref}")
+                    print(f"[ANIM] 🏀 extracted partner_id={anim_manager.partner_id}, site_ref={anim_manager.site_ref}")
                     
                     # Daha önce tespit edilen game'ler için de bağlan
                     if discovered_games:
@@ -133,13 +133,13 @@ async def run_playwright_sniffer(send_queue: asyncio.Queue):
                         game_ids = extract_game_ids(obj.get("data"))
                         
                         if game_ids:
-                            print(f"[SWARM] ⚽ detected {len(game_ids)} soccer games: {list(game_ids)[:5]}...")
+                            print(f"[SWARM] 🏀 detected {len(game_ids)} basketball games: {list(game_ids)[:5]}...")
                         
                         # Yeni bulunan game'ler için animation WS aç
                         for gid in game_ids:
                             if gid not in discovered_games:
                                 discovered_games.add(gid)
-                                print(f"[SWARM] ⚽ new soccer game discovered: {gid}")
+                                print(f"[SWARM] 🏀 new basketball game discovered: {gid}")
                                 asyncio.create_task(anim_manager.connect_for_game(gid))
                     
                     # Swarm mesajını da gönder
@@ -152,7 +152,7 @@ async def run_playwright_sniffer(send_queue: asyncio.Queue):
         page.on("websocket", on_ws)
 
         await page.goto(SITE_URL, wait_until="domcontentloaded")
-        print("[PW] ⚽ listening ws frames for soccer...")
+        print("[PW] 🏀 listening ws frames for basketball...")
         print("[PW] will auto-connect animation WS for all detected games...")
 
         while True:
@@ -168,7 +168,7 @@ async def ingest_sender(send_queue: asyncio.Queue):
                 ping_interval=20,
                 ping_timeout=20
             ) as ws:
-                print("[INGEST] ⚽ Soccer connected ->", INGEST_URL)
+                print("[INGEST] 🏀 Basketball connected ->", INGEST_URL)
 
                 while True:
                     payload = await send_queue.get()
@@ -179,7 +179,7 @@ async def ingest_sender(send_queue: asyncio.Queue):
                     await ws.send(json.dumps(msg, ensure_ascii=False))
 
         except Exception as e:
-            print("[INGEST] reconnecting…", repr(e))
+            print("[INGEST] 🏀 reconnecting…", repr(e))
             await asyncio.sleep(1)
 
 
@@ -195,4 +195,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n[EXIT] stopped by user")
+        print("\n[EXIT] 🏀 Basketball stopped by user")

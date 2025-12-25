@@ -164,16 +164,22 @@ class Engine:
             # sport -> 1: Soccer, 2: Basketball
             sport_id = None
             try:
-                # data.sport.{sport_id} yapısından sport_id'yi al
+                # Üst data yapısında sport dict'i var mı kontrol et
                 if isinstance(data, dict) and "sport" in data:
                     sport_dict = data.get("sport")
                     if isinstance(sport_dict, dict):
-                        sport_id = list(sport_dict.keys())[0] if sport_dict else None
-            except:
-                pass
+                        # İlk key'i al (sport_id)
+                        keys = list(sport_dict.keys())
+                        if keys:
+                            sport_id = str(keys[0])
+                            print(f"[DEBUG] Detected sport_id: {sport_id} for game {gid}")
+            except Exception as e:
+                print(f"[DEBUG] Sport detection error: {e}")
             
+            # Sport_id'ye göre sport türünü belirle
             if sport_id == "2":
                 g.sport = "Basketball"
+                print(f"[SPORT] Game {gid} -> Basketball")
             else:
                 g.sport = "Soccer"
 

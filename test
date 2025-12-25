@@ -1,0 +1,102 @@
+import asyncio
+import websockets
+import json
+
+async def send_test_data():
+    uri = "wss://animasyon.onrender.com/ingest"
+    
+    # Test maç verisi
+    test_data = {
+        "code": 200,
+        "data": {
+            "sport": {
+                "1": {  # Soccer
+                    "region": {
+                        "1": {  # Türkiye
+                            "competition": {
+                                "1": {  # Süper Lig
+                                    "game": {
+                                        "12345": {
+                                            "team1_name": "Galatasaray",
+                                            "team2_name": "Fenerbahçe",
+                                            "info": {
+                                                "score": "2-1",
+                                                "current_game_time": "67",
+                                                "league": {"name": "Süper Lig"},
+                                                "team1_name": "Galatasaray",
+                                                "team2_name": "Fenerbahçe"
+                                            },
+                                            "stats": {
+                                                "attack": {
+                                                    "team1_value": 125,
+                                                    "team2_value": 98
+                                                },
+                                                "dangerous_attack": {
+                                                    "team1_value": 45,
+                                                    "team2_value": 38
+                                                },
+                                                "corner": {
+                                                    "team1_value": 7,
+                                                    "team2_value": 4
+                                                },
+                                                "shot_on_target": {
+                                                    "team1_value": 12,
+                                                    "team2_value": 8
+                                                }
+                                            }
+                                        },
+                                        "12346": {
+                                            "team1_name": "Beşiktaş",
+                                            "team2_name": "Trabzonspor",
+                                            "info": {
+                                                "score": "1-1",
+                                                "current_game_time": "72",
+                                                "league": {"name": "Süper Lig"},
+                                                "team1_name": "Beşiktaş",
+                                                "team2_name": "Trabzonspor"
+                                            },
+                                            "stats": {
+                                                "attack": {
+                                                    "team1_value": 87,
+                                                    "team2_value": 92
+                                                },
+                                                "dangerous_attack": {
+                                                    "team1_value": 31,
+                                                    "team2_value": 35
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    try:
+        async with websockets.connect(uri) as websocket:
+            print(f"Connected to {uri}")
+            
+            # İlk veriyi gönder
+            await websocket.send(json.dumps(test_data))
+            print("Initial data sent!")
+            
+            # Her 3 saniyede bir istatistikleri güncelle
+            for i in range(10):
+                await asyncio.sleep(3)
+                
+                # İstatistikleri artır
+                test_data["data"]["sport"]["1"]["region"]["1"]["competition"]["1"]["game"]["12345"]["stats"]["attack"]["team1_value"] += 2
+                test_data["data"]["sport"]["1"]["region"]["1"]["competition"]["1"]["game"]["12345"]["stats"]["dangerous_attack"]["team1_value"] += 1
+                
+                await websocket.send(json.dumps(test_data))
+                print(f"Update {i+1} sent! Attack: {test_data['data']['sport']['1']['region']['1']['competition']['1']['game']['12345']['stats']['attack']['team1_value']}")
+                
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(send_test_data())
